@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+  ============================================================================
+  Rush Hour Raffle — admin.html
+  ============================================================================
+
+  PURPOSE:
+    Admin dashboard for the Rush Hour Raffle app. Manages players, YouTube
+    channels, and views raffle submissions (screenshot proof of subscription).
+    Each subscription screenshot = one raffle entry.
+
+  AUTHENTICATION:
+    Service-role key passed via URL query parameter: ?key=<service_role_key>
+    Without it, a gate card is shown and no write operations are possible.
+    Read operations use the anon key (RLS). Write operations use the
+    service-role key from the URL (bypasses RLS).
+
+  SUPABASE TABLES:
+    - raffle_players:     id, member_number (unique), first_name, last_name, created_at
+    - raffle_channels:    id, channel_name, channel_url, active (bool), sort_order (int), created_at
+    - raffle_submissions: id, player_id (FK), channel_id (FK), photo_path, uploaded_at, updated_at
+                          UNIQUE(player_id, channel_id)
+    - Storage bucket:     rush-raffle-photos (public)
+
+  TABS:
+    1. Players     — Bulk import (tab/comma separated), player list, delete
+    2. Channels    — Add channel form, list with active toggle, delete
+    3. Submissions — Joined view of uploads with thumbnails, channel filter
+    4. Export      — CSV export of all raffle entries
+
+  BRANDING:
+    PartnerUp gold palette. Wave header with ADMIN badge.
+
+  ARCHITECTURE:
+    Single self-contained HTML file. No external dependencies.
+    fetch() for all Supabase REST API calls.
+  ============================================================================
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#c2b280">
+  <title>Rush Hour Raffle — Admin</title>
+  <style>
+    :root {
+      --primary: #c2b280;
+      --primary-dark: #b5a574;
+      --bg: #f5f0e8;
+      --text: #000000;
+      --card: #ffffff;
+      --muted: #666666;
+      --border: #d4c9a8;
+      --radius: 8px;
+      --spacing: 4px;
+      --success: #2e7d32;
+      --danger: #c0392b;
+      --shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 16px; line-height: 1.5;
+      background: var(--bg); color: var(--text);
+      -webkit-text-size-adjust: 100%;
+    }
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: calc(var(--spacing) * 4);
+    }
+
+    /* ── Header with wave ── */
+    .header {
+      background: var(--primary);
+      padding: calc(var(--spacing) * 5) calc(var(--spacing) * 4) calc(var(--spacing) * 6);
+      text-align: center;
+      border-radius: var(--radius);
+      margin-bottom: calc(var(--spacing) * 4);
+      position: relative;
+      overflow: hidden;
+    }
+    .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; }
+    .header .subtitle { font-size: 1.1rem; font-style: italic; margin-top: 4px; }
+    .admin-badge {
+      position: absolute; top: 8px; right: 8px;
+      background: var(--danger); color: #fff;
+      font-size: 0.65rem; font-weight: 700;
+      padding: 3px 8px; border-radius: 999px;
+      letter-spacing: 0.05em;
+    }
+    .header .wave {
+      position: absolute; left: 0; right: 0; bottom: -1px; height: 12px;
+      background: var(--bg);
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 12' preserveAspectRatio='none'%3E%3Cpath d='M0,6 Q12.5,0 25,6 T50,6 T75,6 T100,6 L100,12 L0,12 Z' fill='%23000'/%3E%3C/svg%3E");
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 12' preserveAspectRatio='none'%3E%3Cpath d='M0,6 Q12.5,0 25,6 T50,6 T75,6 T100,6 L100,12 L0,12 Z' fill='%23000'/%3E%3C/svg%3E");
+      -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+      -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    }
+
+    /* ── Key gate ── */
+    .key-gate { text-align: center; padding: calc(var(--spacing) * 8) calc(var(--spacing) * 4); }
+    .key-gate .card { max-width: 440px; margin: 0 auto; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: calc(var(--spacing) * 4);
+    }
+    .tab {
+      flex: 1;
+      min-width: 100px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      text-align: center;
+      min-height: 44px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .tab:hover { background: #faf8f3; }
+    .tab.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #000;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: calc(var(--spacing) * 6);
+      margin-bottom: calc(var(--spacing) * 4);
+      box-shadow: var(--shadow);
+    }
+    .card h2 {
+      margin: 0 0 calc(var(--spacing) * 3);
+      font-size: 1.1rem;
+    }
+    .card h3 {
+      margin: calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2);
+      font-size: 0.95rem;
+    }
+    .hint { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+
+    /* ── Form controls ── */
+    .form-group { margin-bottom: calc(var(--spacing) * 4); }
+    .form-group label {
+      display: block; font-weight: 600; font-size: 0.9rem;
+      margin-bottom: calc(var(--spacing) * 2);
+    }
+    .form-group input[type="text"],
+    .form-group input[type="url"],
+    .form-group input[type="number"],
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      min-height: 44px;
+      padding: calc(var(--spacing) * 3);
+      font-size: 1rem;
+      font-family: inherit;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(194, 178, 128, 0.25);
+    }
+    .form-group textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.85rem;
+    }
+    .form-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .form-row .form-group { flex: 1; min-width: 140px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-block;
+      min-height: 44px;
+      padding: calc(var(--spacing) * 3) calc(var(--spacing) * 5);
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-family: inherit;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-primary { background: var(--primary); color: #000; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+    .btn-primary:disabled { background: #ccc; color: #666; cursor: not-allowed; }
+    .btn-outline { background: #fff; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover { background: #faf8f3; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #9a221a; }
+    .btn-sm { min-height: 36px; font-size: 0.8rem; padding: 6px 12px; }
+
+    /* ── Tables ── */
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      background: #fff;
+    }
+    .table th, .table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #f0e9d4;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .table th {
+      background: #faf8f3;
+      font-weight: 700;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .table tr:hover td { background: #faf8f3; }
+    .table-wrap { overflow-x: auto; }
+
+    /* ── Status line ── */
+    .status-line {
+      padding: calc(var(--spacing) * 3);
+      border-radius: var(--radius);
+      margin-bottom: calc(var(--spacing) * 3);
+      font-size: 0.9rem;
+      display: none;
+    }
+    .status-line.shown { display: block; }
+    .status-line.ok { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-line.err { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+    /* ── Tab panels ── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Misc ── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+      padding: calc(var(--spacing) * 4) 0;
+    }
+    .hidden { display: none !important; }
+    .muted-note { color: var(--muted); font-style: italic; font-size: 0.85rem; }
+
+    /* ── Thumbnail ── */
+    .thumb {
+      width: 60px; height: 60px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    /* ── Toggle switch ── */
+    .toggle {
+      position: relative;
+      display: inline-block;
+      width: 44px; height: 24px;
+      cursor: pointer;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: #ccc;
+      border-radius: 24px;
+      transition: background 0.2s;
+    }
+    .toggle .slider::before {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      left: 3px; bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .slider { background: var(--success); }
+    .toggle input:checked + .slider::before { transform: translateX(20px); }
+
+    /* ── Count badge ── */
+    .count-badge {
+      display: inline-block;
+      background: var(--primary);
+      color: #000;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-left: 8px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      .table { font-size: 0.8rem; }
+      .table th, .table td { padding: 6px 6px; }
+      .form-row { flex-direction: column; }
+      .thumb { width: 48px; height: 48px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <header class="header">
+    <h1>Rush Hour Raffle</h1>
+    <div class="subtitle">Admin</div>
+    <div class="admin-badge">ADMIN</div>
+    <div class="wave"></div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       KEY GATE — shown when ?key= is missing
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="key-gate hidden" id="keyGate">
+    <div class="card">
+      <h2>Admin key required</h2>
+      <p class="hint">This page needs an admin key to load. Add <code>?key=&lt;service_role&gt;</code> to the URL.</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       MAIN ADMIN UI — shown when key is present
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="adminMain" class="hidden">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button type="button" class="tab active" data-panel="players" onclick="switchTab('players')">Players</button>
+      <button type="button" class="tab" data-panel="channels" onclick="switchTab('channels')">Channels</button>
+      <button type="button" class="tab" data-panel="submissions" onclick="switchTab('submissions')">Submissions</button>
+      <button type="button" class="tab" data-panel="export" onclick="switchTab('export')">Export</button>
+    </div>
+
+    <!-- ═══ Players Panel ═══ -->
+    <div class="tab-panel active" id="panel-players">
+
+      <!-- Bulk import -->
+      <div class="card">
+        <h2>Bulk Import Players</h2>
+        <p class="hint" style="margin-bottom:12px">
+          Paste one player per line. Tab or comma separated:<br>
+          <code>member_number &lt;tab&gt; first_name &lt;tab&gt; last_name</code><br>
+          Duplicates (by APA#) are skipped.
+        </p>
+        <div class="form-group">
+          <label for="importBox">Paste player data</label>
+          <textarea id="importBox" placeholder="12345&#09;John&#09;Doe&#10;67890&#09;Jane&#09;Smith"></textarea>
+        </div>
+        <div id="importStatus" class="status-line"></div>
+        <button type="button" class="btn btn-primary" onclick="importPlayers()">Import Players</button>
+      </div>
+
+      <!-- All players table -->
+      <div class="card">
+        <h2>All Players <span id="playerCount" class="count-badge">0</span></h2>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>APA#</th><th>Name</th><th>Added</th><th></th></tr>
+            </thead>
+            <tbody id="playersBody">
+              <tr><td colspan="4" class="muted-note">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Channels Panel ═══ -->
+    <div class="tab-panel" id="panel-channels">
+
+      <!-- Add channel form -->
+      <div class="card">
+        <h2>Add Channel</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="chName">Channel name</label>
+            <input type="text" id="chName" placeholder="APA Pool League">
+          </div>
+          <div class="form-group">
+            <label for="chUrl">Channel URL</label>
+            <input type="url" id="chUrl" placeholder="https://youtube.com/@example">
+          </div>
+        </div>
+        <div id="channelAddStatus" class="status-line"></div>
+        <button type="button" class="btn btn-primary" onclick="addChannel()">Add Channel</button>
+      </div>
+
+      <!-- Channels list -->
+      <div class="card">
+        <h2>Channels <span id="channelCount" class="count-badge">0</span></h2>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Order</th><th>Name</th><th>URL</th><th>Active</th><th></th></tr>
+            </thead>
+            <tbody id="channelsBody">
+              <tr><td colspan="5" class="muted-note">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Submissions Panel ═══ -->
+    <div class="tab-panel" id="panel-submissions">
+      <div class="card">
+        <h2>Submissions <span id="subCount" class="count-badge">0</span></h2>
+        <div class="form-group" style="max-width:300px">
+          <label for="subFilter">Filter by channel</label>
+          <select id="subFilter" onchange="renderSubmissions()">
+            <option value="">All channels</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Player</th><th>APA#</th><th>Channel</th><th>Screenshot</th><th>Date</th></tr>
+            </thead>
+            <tbody id="subsBody">
+              <tr><td colspan="5" class="muted-note">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Export Panel ═══ -->
+    <div class="tab-panel" id="panel-export">
+      <div class="card">
+        <h2>Export Raffle Entries</h2>
+        <p class="hint" style="margin-bottom:16px">
+          Downloads a CSV with one row per submission: member_number, first_name, last_name,
+          channel_name, uploaded_at. Each row = one raffle entry.
+        </p>
+        <div id="exportStatus" class="status-line"></div>
+        <button type="button" class="btn btn-primary" onclick="exportCSV()">Export Raffle Entries CSV</button>
+      </div>
+    </div>
+
+  </div><!-- /adminMain -->
+
+  <div class="footer">Rush Hour Raffle Admin</div>
+
+</div><!-- /page -->
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   CONFIG
+   ════════════════════════════════════════════════════════════════════════════ */
+
+const SB_URL  = 'https://dqzbekoaysgaiqljueac.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxemJla29heXNnYWlxbGp1ZWFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNzA5NzgsImV4cCI6MjA5MDc0Njk3OH0.cCdGxZ4zEFzU_r6lWSDeoNWG67Q4MSYCAtpds035dfU';
+const STORAGE_BASE = SB_URL + '/storage/v1/object/public/rush-raffle-photos/';
+
+/* Service-role key from URL — null if absent */
+const params = new URLSearchParams(location.search);
+const SB_KEY  = params.get('key') || '';
+
+/* Headers for read (anon) and write (service_role) */
+const SB_READ = {
+  'apikey': SB_ANON,
+  'Authorization': 'Bearer ' + SB_ANON,
+};
+const SB_WRITE = SB_KEY ? {
+  'apikey': SB_KEY,
+  'Authorization': 'Bearer ' + SB_KEY,
+  'Content-Type': 'application/json',
+  'Prefer': 'return=representation',
+} : null;
+
+/* ════════════════════════════════════════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* In-memory caches populated by load functions */
+let allPlayers     = [];
+let allChannels    = [];
+let allSubmissions = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (!SB_KEY) {
+    document.getElementById('keyGate').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('adminMain').classList.remove('hidden');
+  loadPlayers();
+  loadChannels();
+  loadSubmissions();
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UTILITIES
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/** HTML-escape to prevent XSS */
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+/** Show a status-line element */
+function showStatus(id, msg, ok) {
+  const el = document.getElementById(id);
+  el.className = 'status-line shown ' + (ok ? 'ok' : 'err');
+  el.innerHTML = msg;
+}
+
+/** Hide a status-line element */
+function hideStatus(id) {
+  const el = document.getElementById(id);
+  el.className = 'status-line';
+  el.innerHTML = '';
+}
+
+/** Format ISO date as short locale string */
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** Supabase REST GET with query string */
+async function sbGet(table, query) {
+  const url = SB_URL + '/rest/v1/' + table + '?' + query;
+  const res = await fetch(url, { headers: SB_READ });
+  if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
+  return res.json();
+}
+
+/** Supabase REST POST (upsert / insert) */
+async function sbPost(table, body, extra) {
+  const headers = { ...SB_WRITE };
+  if (extra) Object.assign(headers, extra);
+  const url = SB_URL + '/rest/v1/' + table;
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
+  return res.json();
+}
+
+/** Supabase REST PATCH */
+async function sbPatch(table, query, body) {
+  const headers = { ...SB_WRITE };
+  const url = SB_URL + '/rest/v1/' + table + '?' + query;
+  const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
+  return res.json();
+}
+
+/** Supabase REST DELETE */
+async function sbDelete(table, query) {
+  const url = SB_URL + '/rest/v1/' + table + '?' + query;
+  const res = await fetch(url, { method: 'DELETE', headers: SB_WRITE });
+  if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TAB SWITCHING
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PLAYERS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+async function loadPlayers() {
+  try {
+    allPlayers = await sbGet('raffle_players', 'select=*&order=last_name.asc,first_name.asc');
+    renderPlayers();
+  } catch (e) {
+    document.getElementById('playersBody').innerHTML =
+      '<tr><td colspan="4" style="color:var(--danger)">' + esc(e.message) + '</td></tr>';
+  }
+}
+
+function renderPlayers() {
+  document.getElementById('playerCount').textContent = allPlayers.length;
+  const tb = document.getElementById('playersBody');
+  if (!allPlayers.length) {
+    tb.innerHTML = '<tr><td colspan="4" class="muted-note">No players yet.</td></tr>';
+    return;
+  }
+  tb.innerHTML = allPlayers.map(p =>
+    '<tr>' +
+      '<td>' + esc(p.member_number) + '</td>' +
+      '<td>' + esc(p.first_name) + ' ' + esc(p.last_name) + '</td>' +
+      '<td>' + fmtDate(p.created_at) + '</td>' +
+      '<td><button class="btn btn-danger btn-sm" onclick="deletePlayer(' + p.id + ',\'' + esc(p.member_number) + '\')">Delete</button></td>' +
+    '</tr>'
+  ).join('');
+}
+
+async function deletePlayer(id, memberNum) {
+  if (!confirm('Delete player ' + memberNum + '? This also deletes their submissions.')) return;
+  try {
+    await sbDelete('raffle_submissions', 'player_id=eq.' + id);
+    await sbDelete('raffle_players', 'id=eq.' + id);
+    allPlayers = allPlayers.filter(p => p.id !== id);
+    allSubmissions = allSubmissions.filter(s => s.player_id !== id);
+    renderPlayers();
+    renderSubmissions();
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+/**
+ * Bulk import: parse textarea, detect delimiter (tab or comma), upsert into
+ * raffle_players. Dedup by member_number using ON CONFLICT.
+ */
+async function importPlayers() {
+  hideStatus('importStatus');
+  const raw = document.getElementById('importBox').value.trim();
+  if (!raw) { showStatus('importStatus', 'Paste player data first.', false); return; }
+
+  const lines = raw.split(/\r?\n/).filter(l => l.trim());
+  const rows = [];
+  const errors = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    /* Auto-detect delimiter: tab first, then comma */
+    const parts = line.includes('\t') ? line.split('\t') : line.split(',');
+    if (parts.length < 3) {
+      errors.push('Line ' + (i + 1) + ': need 3 fields, got ' + parts.length);
+      continue;
+    }
+    const memberNum = parts[0].trim();
+    const first = parts[1].trim();
+    const last = parts[2].trim();
+    if (!memberNum || !first || !last) {
+      errors.push('Line ' + (i + 1) + ': empty field(s)');
+      continue;
+    }
+    rows.push({ member_number: memberNum, first_name: first, last_name: last });
+  }
+
+  if (!rows.length) {
+    showStatus('importStatus', 'No valid rows found.' + (errors.length ? '<br>' + esc(errors.join('; ')) : ''), false);
+    return;
+  }
+
+  showStatus('importStatus', '<span class="spinner"></span>Importing ' + rows.length + ' player(s)...', true);
+
+  try {
+    /* Upsert: ON CONFLICT (member_number) DO UPDATE so re-import is safe */
+    const headers = { 'Prefer': 'return=representation,resolution=merge-duplicates' };
+    const result = await sbPost('raffle_players', rows, headers);
+    const msg = 'Imported ' + result.length + ' player(s).' +
+      (errors.length ? ' Skipped ' + errors.length + ' bad line(s).' : '');
+    showStatus('importStatus', msg, true);
+    document.getElementById('importBox').value = '';
+    await loadPlayers();
+  } catch (e) {
+    showStatus('importStatus', 'Import failed: ' + esc(e.message), false);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CHANNELS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+async function loadChannels() {
+  try {
+    allChannels = await sbGet('raffle_channels', 'select=*&order=sort_order.asc,channel_name.asc');
+    renderChannels();
+    populateChannelFilter();
+  } catch (e) {
+    document.getElementById('channelsBody').innerHTML =
+      '<tr><td colspan="5" style="color:var(--danger)">' + esc(e.message) + '</td></tr>';
+  }
+}
+
+function renderChannels() {
+  document.getElementById('channelCount').textContent = allChannels.length;
+  const tb = document.getElementById('channelsBody');
+  if (!allChannels.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="muted-note">No channels yet.</td></tr>';
+    return;
+  }
+  tb.innerHTML = allChannels.map(ch =>
+    '<tr>' +
+      '<td>' + (ch.sort_order != null ? ch.sort_order : '—') + '</td>' +
+      '<td>' + esc(ch.channel_name) + '</td>' +
+      '<td><a href="' + esc(ch.channel_url) + '" target="_blank" rel="noopener">' + esc(ch.channel_url) + '</a></td>' +
+      '<td>' +
+        '<label class="toggle">' +
+          '<input type="checkbox"' + (ch.active ? ' checked' : '') + ' onchange="toggleChannel(' + ch.id + ',this.checked)">' +
+          '<span class="slider"></span>' +
+        '</label>' +
+      '</td>' +
+      '<td><button class="btn btn-danger btn-sm" onclick="deleteChannel(' + ch.id + ',\'' + esc(ch.channel_name).replace(/'/g, "\\'") + '\')">Delete</button></td>' +
+    '</tr>'
+  ).join('');
+}
+
+function populateChannelFilter() {
+  const sel = document.getElementById('subFilter');
+  /* Preserve current selection */
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All channels</option>' +
+    allChannels.map(ch =>
+      '<option value="' + ch.id + '">' + esc(ch.channel_name) + '</option>'
+    ).join('');
+  sel.value = cur;
+}
+
+async function addChannel() {
+  hideStatus('channelAddStatus');
+  const name = document.getElementById('chName').value.trim();
+  const url  = document.getElementById('chUrl').value.trim();
+  if (!name || !url) {
+    showStatus('channelAddStatus', 'Both fields are required.', false);
+    return;
+  }
+
+  /* Default sort_order = max + 1 */
+  const maxSort = allChannels.reduce((m, c) => Math.max(m, c.sort_order || 0), 0);
+
+  try {
+    await sbPost('raffle_channels', [{
+      channel_name: name,
+      channel_url: url,
+      active: true,
+      sort_order: maxSort + 1,
+    }]);
+    showStatus('channelAddStatus', 'Channel added.', true);
+    document.getElementById('chName').value = '';
+    document.getElementById('chUrl').value = '';
+    await loadChannels();
+  } catch (e) {
+    showStatus('channelAddStatus', 'Failed: ' + esc(e.message), false);
+  }
+}
+
+async function toggleChannel(id, active) {
+  try {
+    await sbPatch('raffle_channels', 'id=eq.' + id, { active });
+    /* Update local cache */
+    const ch = allChannels.find(c => c.id === id);
+    if (ch) ch.active = active;
+  } catch (e) {
+    alert('Toggle failed: ' + e.message);
+    await loadChannels(); /* revert UI */
+  }
+}
+
+async function deleteChannel(id, name) {
+  if (!confirm('Delete channel "' + name + '"? This also deletes all submissions for this channel.')) return;
+  try {
+    await sbDelete('raffle_submissions', 'channel_id=eq.' + id);
+    await sbDelete('raffle_channels', 'id=eq.' + id);
+    allChannels = allChannels.filter(c => c.id !== id);
+    allSubmissions = allSubmissions.filter(s => s.channel_id !== id);
+    renderChannels();
+    populateChannelFilter();
+    renderSubmissions();
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SUBMISSIONS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+async function loadSubmissions() {
+  try {
+    /*
+     * Use PostgREST embedded resources to join player + channel in one call.
+     * Returns: { ...submission, raffle_players: { ... }, raffle_channels: { ... } }
+     */
+    allSubmissions = await sbGet(
+      'raffle_submissions',
+      'select=*,raffle_players(member_number,first_name,last_name),raffle_channels(channel_name)' +
+      '&order=uploaded_at.desc'
+    );
+    renderSubmissions();
+  } catch (e) {
+    document.getElementById('subsBody').innerHTML =
+      '<tr><td colspan="5" style="color:var(--danger)">' + esc(e.message) + '</td></tr>';
+  }
+}
+
+function renderSubmissions() {
+  const filterCh = document.getElementById('subFilter').value;
+  const filtered = filterCh
+    ? allSubmissions.filter(s => String(s.channel_id) === filterCh)
+    : allSubmissions;
+
+  document.getElementById('subCount').textContent = filtered.length;
+  const tb = document.getElementById('subsBody');
+
+  if (!filtered.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="muted-note">No submissions' +
+      (filterCh ? ' for this channel' : '') + '.</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = filtered.map(s => {
+    const pl = s.raffle_players || {};
+    const ch = s.raffle_channels || {};
+    const imgUrl = STORAGE_BASE + s.photo_path;
+    return '<tr>' +
+      '<td>' + esc(pl.first_name) + ' ' + esc(pl.last_name) + '</td>' +
+      '<td>' + esc(pl.member_number) + '</td>' +
+      '<td>' + esc(ch.channel_name) + '</td>' +
+      '<td><a href="' + esc(imgUrl) + '" target="_blank" rel="noopener">' +
+        '<img class="thumb" src="' + esc(imgUrl) + '" alt="screenshot" loading="lazy">' +
+      '</a></td>' +
+      '<td>' + fmtDate(s.uploaded_at) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   EXPORT
+   ════════════════════════════════════════════════════════════════════════════ */
+
+async function exportCSV() {
+  hideStatus('exportStatus');
+  showStatus('exportStatus', '<span class="spinner"></span>Loading entries...', true);
+
+  try {
+    /* Fresh fetch to get latest data with joins */
+    const subs = await sbGet(
+      'raffle_submissions',
+      'select=uploaded_at,raffle_players(member_number,first_name,last_name),raffle_channels(channel_name)' +
+      '&order=raffle_players(last_name).asc,raffle_players(first_name).asc,raffle_channels(channel_name).asc'
+    );
+
+    if (!subs.length) {
+      showStatus('exportStatus', 'No submissions to export.', false);
+      return;
+    }
+
+    /* Build CSV with UTF-8 BOM */
+    const header = 'member_number,first_name,last_name,channel_name,uploaded_at';
+    const rows = subs.map(s => {
+      const pl = s.raffle_players || {};
+      const ch = s.raffle_channels || {};
+      return [
+        csvField(pl.member_number),
+        csvField(pl.first_name),
+        csvField(pl.last_name),
+        csvField(ch.channel_name),
+        csvField(s.uploaded_at),
+      ].join(',');
+    });
+
+    const csv = '\uFEFF' + header + '\n' + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const today = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = 'raffle_entries_' + today + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showStatus('exportStatus', 'Exported ' + subs.length + ' entries.', true);
+  } catch (e) {
+    showStatus('exportStatus', 'Export failed: ' + esc(e.message), false);
+  }
+}
+
+/** Escape a value for CSV (quote if it contains comma, quote, or newline) */
+function csvField(val) {
+  if (val == null) return '';
+  const s = String(val);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+</script>
+</body>
+</html>

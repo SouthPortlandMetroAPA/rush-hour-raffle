@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rush Hour Raffle — APA NW Challenge</title>
+<style>
+/* ==========================================================================
+   CSS Reset & Variables
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --primary: #c2b280;
+  --primary-dark: #b5a574;
+  --bg: #f5f0e8;
+  --text: #000;
+  --card: #fff;
+  --muted: #666;
+  --border: #d4c9a8;
+  --radius: 8px;
+  --spacing: 4px;
+  --success: #2e7d32;
+  --danger: #c0392b;
+  --shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+html { font-size: 16px; }
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   Utility
+   ========================================================================== */
+.hidden { display: none !important; }
+
+/* ==========================================================================
+   Header — wave-style gold bar
+   ========================================================================== */
+.header {
+  background: var(--primary);
+  padding: 24px 16px 32px;
+  text-align: center;
+  position: relative;
+}
+
+/* Wavy bottom edge */
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -16px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background: var(--primary);
+  clip-path: ellipse(55% 100% at 50% 0%);
+}
+
+.header-inner {
+  position: relative;
+}
+
+.header h1 {
+  font-size: clamp(1.25rem, 1rem + 1.5vw, 1.75rem);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.header .subtitle {
+  font-size: clamp(0.875rem, 0.75rem + 0.5vw, 1.1rem);
+  font-style: italic;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.admin-link {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 0.75rem;
+  color: var(--text);
+  text-decoration: none;
+  opacity: 0.5;
+  padding: 4px 8px;
+}
+.admin-link:hover { opacity: 0.8; }
+
+/* ==========================================================================
+   Container
+   ========================================================================== */
+.container {
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 16px 48px;
+}
+
+/* ==========================================================================
+   Banner (success / error)
+   ========================================================================== */
+.banner {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-weight: 500;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.banner-success { background: #e8f5e9; color: var(--success); border: 1px solid #c8e6c9; }
+.banner-error   { background: #ffebee; color: var(--danger);  border: 1px solid #ffcdd2; }
+
+/* ==========================================================================
+   Login Screen
+   ========================================================================== */
+.login-wrap {
+  max-width: 400px;
+  margin: 48px auto 0;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.form-group { margin-bottom: 16px; }
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+}
+
+.form-group input[type="text"] {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  font-size: 1rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+}
+
+.form-group input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.btn-gold {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--text);
+}
+.btn-gold:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
+
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--text);
+  color: var(--text);
+}
+.btn-outline:hover { background: rgba(0,0,0,0.05); }
+
+.btn-sm {
+  min-height: 36px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+}
+
+.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: transparent;
+}
+.btn-danger:hover { background: rgba(192,57,43,0.08); }
+
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-yt {
+  background: #FF0000;
+  border-color: #FF0000;
+  color: #fff;
+  font-weight: 600;
+  gap: 8px;
+}
+.btn-yt:hover { background: #cc0000; border-color: #cc0000; }
+
+.btn-replace {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  min-height: 36px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  font-family: inherit;
+}
+.btn-replace:hover { border-color: var(--primary); color: var(--text); }
+
+/* ==========================================================================
+   Greeting bar
+   ========================================================================== */
+.greeting-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.greeting-bar h2 {
+  font-size: clamp(1.125rem, 1rem + 0.5vw, 1.5rem);
+  font-weight: 700;
+}
+
+.logout-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  min-height: 36px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  font-family: inherit;
+}
+.logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ==========================================================================
+   Entry counter
+   ========================================================================== */
+.entry-counter {
+  text-align: center;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.entry-counter .count {
+  font-size: clamp(2.5rem, 2rem + 2vw, 4rem);
+  font-weight: 800;
+  color: var(--success);
+  line-height: 1;
+}
+.entry-counter .label {
+  font-size: 1rem;
+  color: var(--muted);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   Channel cards grid
+   ========================================================================== */
+.channels-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 600px) {
+  .channels-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 960px) {
+  .channels-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.channel-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  transition: box-shadow 0.2s;
+}
+
+@media (hover: hover) {
+  .channel-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+}
+
+/* Completed badge */
+.channel-card.completed { border-color: var(--success); }
+
+.check-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  background: var(--success);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.channel-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding-right: 36px; /* room for badge */
+}
+
+/* ==========================================================================
+   Upload drop zone
+   ========================================================================== */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  color: var(--muted);
+  font-size: 0.875rem;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.drop-zone:hover,
+.drop-zone.dragover {
+  border-color: var(--primary);
+  background: rgba(194,178,128,0.08);
+}
+
+.drop-zone .icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.drop-zone input[type="file"] { display: none; }
+
+/* Uploaded thumbnail */
+.upload-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-result img {
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+
+/* ==========================================================================
+   Spinner
+   ========================================================================== */
+.spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.upload-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+.footer {
+  text-align: center;
+  padding: 16px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     HEADER
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="header">
+  <div class="header-inner">
+    <a href="admin.html" class="admin-link">Admin</a>
+    <h1>Rush Hour Raffle</h1>
+    <p class="subtitle">Subscribe. Screenshot. Win.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     LOGIN SCREEN
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="container" id="loginScreen">
+  <div class="login-wrap">
+    <div id="loginBanner"></div>
+    <div class="card">
+      <form id="loginForm" autocomplete="off">
+        <div class="form-group">
+          <label for="memberInput">APA Member Number</label>
+          <input type="text" id="memberInput" inputmode="numeric" pattern="[0-9]*"
+                 placeholder="e.g. 12345678" autocomplete="off">
+        </div>
+        <button type="submit" class="btn btn-gold" style="width:100%">Log In</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     MAIN SCREEN (logged in)
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="container hidden" id="mainScreen">
+  <!-- Greeting -->
+  <div class="greeting-bar">
+    <h2 id="greeting"></h2>
+    <button class="logout-btn" onclick="logout()">Log out</button>
+  </div>
+
+  <!-- Banner area for success/error messages -->
+  <div id="mainBanner"></div>
+
+  <!-- Entry counter -->
+  <div class="entry-counter card">
+    <div class="count" id="entryCount">0</div>
+    <div class="label">raffle entries</div>
+  </div>
+
+  <!-- Channel cards -->
+  <div class="channels-grid" id="channelsGrid"></div>
+</div>
+
+<div class="footer">APA NW Challenge</div>
+
+<script>
+/* ==========================================================================
+   RUSH HOUR RAFFLE — Player-facing page
+   ==========================================================================
+   PURPOSE
+     Lets APA players log in with their member number, view YouTube channels
+     to subscribe to, and upload screenshot proof of each subscription.
+     Each uploaded proof = 1 raffle entry.
+
+   DATA FLOW
+     Browser → Supabase REST API (PostgREST) + Supabase Storage
+     No backend proxy needed — all tables use RLS with anon access.
+
+   TABLES
+     raffle_players      – whitelist of eligible members (read only)
+     raffle_channels     – YouTube channels to subscribe to (read only)
+     raffle_submissions  – proof uploads, one per player+channel (read/write)
+
+   STORAGE
+     rush-raffle-photos  – public bucket for screenshot uploads
+   ========================================================================== */
+
+// ── Supabase config ──────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://dqzbekoaysgaiqljueac.supabase.co';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxemJla29heXNnYWlxbGp1ZWFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNzA5NzgsImV4cCI6MjA5MDc0Njk3OH0.cCdGxZ4zEFzU_r6lWSDeoNWG67Q4MSYCAtpds035dfU';
+const STORAGE_BASE = SUPABASE_URL + '/storage/v1/object/rush-raffle-photos/';
+const STORAGE_PUBLIC = SUPABASE_URL + '/storage/v1/object/public/rush-raffle-photos/';
+const LS_KEY = 'rush_raffle_login';
+
+// ── Headers ──────────────────────────────────────────────────────────────
+const READ_HEADERS  = { apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY };
+const WRITE_HEADERS = { ...READ_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+
+// ── State ────────────────────────────────────────────────────────────────
+let currentPlayer  = null;   // { id, member_number, first_name, last_name }
+let channels       = [];     // [{ id, channel_name, channel_url, sort_order }]
+let submissions    = {};     // { channel_id: { id, photo_path } }
+
+// ── DOM refs ─────────────────────────────────────────────────────────────
+const loginScreen   = document.getElementById('loginScreen');
+const mainScreen    = document.getElementById('mainScreen');
+const loginForm     = document.getElementById('loginForm');
+const memberInput   = document.getElementById('memberInput');
+const loginBanner   = document.getElementById('loginBanner');
+const mainBanner    = document.getElementById('mainBanner');
+const greeting      = document.getElementById('greeting');
+const entryCount    = document.getElementById('entryCount');
+const channelsGrid  = document.getElementById('channelsGrid');
+
+// ══════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════════════════════════════════════
+
+/** HTML-escape a string to prevent XSS */
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/** Show a timed banner (type = 'success' | 'error') */
+function showBanner(container, type, msg, duration) {
+  const icon = type === 'success' ? '&#10003;' : '&#9888;';
+  container.innerHTML = '<div class="banner banner-' + type + '">' + icon + ' ' + esc(msg) + '</div>';
+  if (duration) setTimeout(function() { container.innerHTML = ''; }, duration);
+}
+
+/** Supabase REST fetch wrapper */
+async function sbFetch(path, opts) {
+  const url = SUPABASE_URL + '/rest/v1/' + path;
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error('Supabase ' + res.status + ': ' + body);
+  }
+  return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════════════════════════════════════
+
+loginForm.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const num = memberInput.value.trim();
+  if (!num) return;
+  loginBanner.innerHTML = '';
+  try {
+    await doLogin(num);
+  } catch (err) {
+    showBanner(loginBanner, 'error', err.message);
+  }
+});
+
+/**
+ * Look up member number in raffle_players.
+ * On success, saves to localStorage and shows main screen.
+ */
+async function doLogin(memberNumber) {
+  const rows = await sbFetch(
+    'raffle_players?member_number=eq.' + encodeURIComponent(memberNumber) + '&select=id,member_number,first_name,last_name',
+    { headers: READ_HEADERS }
+  );
+  if (!rows.length) {
+    throw new Error("You're not on the raffle list. Check with the tournament director.");
+  }
+  currentPlayer = rows[0];
+  localStorage.setItem(LS_KEY, JSON.stringify(currentPlayer));
+  showMainScreen();
+}
+
+/** Auto-login on page load if localStorage has a saved player */
+async function autoLogin() {
+  const saved = localStorage.getItem(LS_KEY);
+  if (!saved) return;
+  try {
+    currentPlayer = JSON.parse(saved);
+    // Re-validate that the player still exists
+    const rows = await sbFetch(
+      'raffle_players?member_number=eq.' + encodeURIComponent(currentPlayer.member_number) + '&select=id,member_number,first_name,last_name',
+      { headers: READ_HEADERS }
+    );
+    if (!rows.length) {
+      localStorage.removeItem(LS_KEY);
+      currentPlayer = null;
+      return;
+    }
+    currentPlayer = rows[0];
+    localStorage.setItem(LS_KEY, JSON.stringify(currentPlayer));
+    showMainScreen();
+  } catch (e) {
+    // Network error — still show login, don't clear localStorage
+    console.warn('Auto-login fetch failed:', e);
+  }
+}
+
+function logout() {
+  localStorage.removeItem(LS_KEY);
+  currentPlayer = null;
+  channels = [];
+  submissions = {};
+  channelsGrid.innerHTML = '';
+  mainBanner.innerHTML = '';
+  loginBanner.innerHTML = '';
+  memberInput.value = '';
+  mainScreen.classList.add('hidden');
+  loginScreen.classList.remove('hidden');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MAIN SCREEN
+// ══════════════════════════════════════════════════════════════════════════
+
+async function showMainScreen() {
+  loginScreen.classList.add('hidden');
+  mainScreen.classList.remove('hidden');
+  greeting.textContent = 'Hello, ' + currentPlayer.first_name + '!';
+
+  try {
+    await Promise.all([loadChannels(), loadSubmissions()]);
+    renderChannels();
+    updateEntryCount();
+  } catch (err) {
+    showBanner(mainBanner, 'error', 'Failed to load data: ' + err.message);
+  }
+}
+
+async function loadChannels() {
+  channels = await sbFetch(
+    'raffle_channels?active=eq.true&order=sort_order.asc&select=id,channel_name,channel_url',
+    { headers: READ_HEADERS }
+  );
+}
+
+async function loadSubmissions() {
+  const rows = await sbFetch(
+    'raffle_submissions?player_id=eq.' + currentPlayer.id + '&select=id,channel_id,photo_path',
+    { headers: READ_HEADERS }
+  );
+  submissions = {};
+  rows.forEach(function(r) { submissions[r.channel_id] = r; });
+}
+
+function updateEntryCount() {
+  entryCount.textContent = Object.keys(submissions).length;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CHANNEL CARDS
+// ══════════════════════════════════════════════════════════════════════════
+
+function renderChannels() {
+  channelsGrid.innerHTML = '';
+  channels.forEach(function(ch) {
+    const sub = submissions[ch.id];
+    const card = document.createElement('div');
+    card.className = 'channel-card' + (sub ? ' completed' : '');
+    card.id = 'card-' + ch.id;
+
+    let html = '';
+
+    // Green check badge if completed
+    if (sub) {
+      html += '<div class="check-badge" aria-label="Uploaded">&#10003;</div>';
+    }
+
+    // Channel name
+    html += '<div class="channel-name">' + esc(ch.channel_name) + '</div>';
+
+    // Subscribe button
+    html += '<a href="' + esc(ch.channel_url) + '" target="_blank" rel="noopener" class="btn btn-yt">';
+    html += '<svg width="20" height="14" viewBox="0 0 20 14" fill="currentColor" aria-hidden="true">';
+    html += '<path d="M19.6 2.2A2.5 2.5 0 0017.8.4C16.2 0 10 0 10 0S3.8 0 2.2.4A2.5 2.5 0 00.4 2.2C0 3.8 0 7 0 7s0 3.2.4 4.8a2.5 2.5 0 001.8 1.8C3.8 14 10 14 10 14s6.2 0 7.8-.4a2.5 2.5 0 001.8-1.8C20 10.2 20 7 20 7s0-3.2-.4-4.8zM8 10V4l5.2 3L8 10z"/>';
+    html += '</svg> Subscribe on YouTube</a>';
+
+    // Upload area
+    html += '<div id="upload-' + ch.id + '">';
+    if (sub) {
+      html += renderThumbnail(ch.id, sub.photo_path);
+    } else {
+      html += renderDropZone(ch.id);
+    }
+    html += '</div>';
+
+    card.innerHTML = html;
+    channelsGrid.appendChild(card);
+
+    // Attach drop zone events after DOM insertion
+    attachDropZoneEvents(ch.id);
+  });
+}
+
+/** Returns HTML for a dashed upload drop zone */
+function renderDropZone(channelId) {
+  return '<div class="drop-zone" id="dropzone-' + channelId + '">' +
+    '<div class="icon">&#128247;</div>' +
+    '<div>Upload screenshot proof</div>' +
+    '<div style="font-size:0.75rem;color:var(--muted)">Tap or drag image here</div>' +
+    '<input type="file" accept="image/*" id="fileinput-' + channelId + '">' +
+    '</div>';
+}
+
+/** Returns HTML for an uploaded thumbnail with Replace button */
+function renderThumbnail(channelId, photoPath) {
+  const src = STORAGE_PUBLIC + photoPath + '?t=' + Date.now();
+  return '<div class="upload-result">' +
+    '<img src="' + esc(src) + '" alt="Subscription proof">' +
+    '<button class="btn-replace" onclick="triggerReplace(' + channelId + ')">Replace screenshot</button>' +
+    '<input type="file" accept="image/*" id="fileinput-' + channelId + '" style="display:none">' +
+    '</div>';
+}
+
+/** Returns HTML for spinner state */
+function renderSpinner() {
+  return '<div class="upload-spinner"><div class="spinner"></div> Uploading...</div>';
+}
+
+// ── Drop zone & file input wiring ────────────────────────────────────────
+
+function attachDropZoneEvents(channelId) {
+  const zone = document.getElementById('dropzone-' + channelId);
+  const input = document.getElementById('fileinput-' + channelId);
+  if (!input) return;
+
+  // File input change
+  input.addEventListener('change', function() {
+    if (input.files && input.files[0]) handleFile(channelId, input.files[0]);
+  });
+
+  // Click on drop zone triggers file picker
+  if (zone) {
+    zone.addEventListener('click', function() { input.click(); });
+
+    // Drag events
+    zone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      zone.classList.add('dragover');
+    });
+    zone.addEventListener('dragleave', function() {
+      zone.classList.remove('dragover');
+    });
+    zone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleFile(channelId, e.dataTransfer.files[0]);
+      }
+    });
+  }
+}
+
+/** Trigger a replace: click the hidden file input.
+ *  The change listener is already attached by attachDropZoneEvents(). */
+function triggerReplace(channelId) {
+  var input = document.getElementById('fileinput-' + channelId);
+  if (input) input.click();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// UPLOAD FLOW
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Full upload pipeline:
+ * 1. Client-side resize to max 1200px wide, JPEG 0.8
+ * 2. Delete old storage object if replacing
+ * 3. PUT to Supabase Storage
+ * 4. Upsert raffle_submissions
+ * 5. Update UI
+ */
+async function handleFile(channelId, file) {
+  if (!file.type.startsWith('image/')) {
+    showBanner(mainBanner, 'error', 'Please select an image file.', 4000);
+    return;
+  }
+
+  // Show spinner
+  const uploadArea = document.getElementById('upload-' + channelId);
+  if (uploadArea) uploadArea.innerHTML = renderSpinner();
+
+  try {
+    // 1. Resize
+    const blob = await resizeImage(file, 1200, 0.8);
+
+    // 2. Delete old object if this is a replacement
+    const oldSub = submissions[channelId];
+    if (oldSub && oldSub.photo_path) {
+      await deleteStorageObject(oldSub.photo_path);
+    }
+
+    // 3. Upload to storage
+    const storagePath = currentPlayer.member_number + '/' + channelId + '_' + Date.now() + '.jpg';
+    await uploadToStorage(storagePath, blob);
+
+    // 4. Upsert submission
+    await upsertSubmission(channelId, storagePath);
+
+    // 5. Update local state and re-render card
+    submissions[channelId] = { channel_id: channelId, photo_path: storagePath };
+    updateEntryCount();
+    refreshCard(channelId);
+
+    showBanner(mainBanner, 'success', 'Screenshot uploaded!', 3000);
+  } catch (err) {
+    console.error('Upload failed:', err);
+    showBanner(mainBanner, 'error', 'Upload failed: ' + err.message, 5000);
+    // Restore the drop zone / thumbnail
+    refreshCard(channelId);
+  }
+}
+
+/** Resize an image file on a canvas. Returns a JPEG Blob. */
+function resizeImage(file, maxWidth, quality) {
+  return new Promise(function(resolve, reject) {
+    const img = new Image();
+    const objUrl = URL.createObjectURL(file);
+    img.onload = function() {
+      URL.revokeObjectURL(objUrl);
+      let w = img.width;
+      let h = img.height;
+      if (w > maxWidth) {
+        h = Math.round(h * maxWidth / w);
+        w = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(function(blob) {
+        if (blob) resolve(blob);
+        else reject(new Error('Canvas toBlob failed'));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = function() { URL.revokeObjectURL(objUrl); reject(new Error('Failed to load image')); };
+    img.src = objUrl;
+  });
+}
+
+/** PUT a blob to Supabase Storage */
+async function uploadToStorage(path, blob) {
+  const url = STORAGE_BASE + path;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      apikey: ANON_KEY,
+      Authorization: 'Bearer ' + ANON_KEY,
+      'Content-Type': 'image/jpeg',
+      'x-upsert': 'true'
+    },
+    body: blob
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error('Storage upload failed: ' + body);
+  }
+}
+
+/** Delete a storage object (best-effort, don't throw on 404) */
+async function deleteStorageObject(path) {
+  const url = STORAGE_BASE + path;
+  try {
+    await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        apikey: ANON_KEY,
+        Authorization: 'Bearer ' + ANON_KEY
+      }
+    });
+  } catch (e) {
+    console.warn('Delete old photo failed (non-fatal):', e);
+  }
+}
+
+/** Upsert a submission row using the unique (player_id, channel_id) constraint */
+async function upsertSubmission(channelId, photoPath) {
+  const now = new Date().toISOString();
+  await sbFetch('raffle_submissions?on_conflict=player_id,channel_id', {
+    method: 'POST',
+    headers: {
+      ...WRITE_HEADERS,
+      Prefer: 'return=representation,resolution=merge-duplicates'
+    },
+    body: JSON.stringify({
+      player_id: currentPlayer.id,
+      channel_id: channelId,
+      photo_path: photoPath,
+      uploaded_at: now,
+      updated_at: now
+    })
+  });
+}
+
+/** Re-render a single channel card after upload/error */
+function refreshCard(channelId) {
+  const sub = submissions[channelId];
+  const card = document.getElementById('card-' + channelId);
+  if (!card) return;
+
+  // Update completed class and badge
+  if (sub) {
+    card.classList.add('completed');
+    if (!card.querySelector('.check-badge')) {
+      const badge = document.createElement('div');
+      badge.className = 'check-badge';
+      badge.setAttribute('aria-label', 'Uploaded');
+      badge.innerHTML = '&#10003;';
+      card.insertBefore(badge, card.firstChild);
+    }
+  } else {
+    card.classList.remove('completed');
+    const badge = card.querySelector('.check-badge');
+    if (badge) badge.remove();
+  }
+
+  // Update upload area
+  const uploadArea = document.getElementById('upload-' + channelId);
+  if (!uploadArea) return;
+  if (sub) {
+    uploadArea.innerHTML = renderThumbnail(channelId, sub.photo_path);
+  } else {
+    uploadArea.innerHTML = renderDropZone(channelId);
+  }
+  attachDropZoneEvents(channelId);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+
+autoLogin();
+</script>
+</body>
+</html>

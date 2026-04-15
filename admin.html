@@ -345,8 +345,8 @@
        ═══════════════════════════════════════════════════════════════════════ -->
   <div class="key-gate hidden" id="keyGate">
     <div class="card">
-      <h2>Admin key required</h2>
-      <p class="hint">This page needs an admin key to load. Add <code>?key=&lt;service_role&gt;</code> to the URL.</p>
+      <h2 id="keyGateTitle">Admin key required</h2>
+      <p class="hint" id="keyGateMsg">This page needs an admin key to load. Add <code>?key=&lt;service_role&gt;</code> to the URL.</p>
     </div>
   </div>
 
@@ -510,11 +510,29 @@ let allPlayers     = [];
 let allChannels    = [];
 let allSubmissions = [];
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   if (!SB_KEY) {
     document.getElementById('keyGate').classList.remove('hidden');
     return;
   }
+
+  // Validate the key by making a test query that only service_role can do.
+  // If the key is wrong/expired, show an "Access Denied" message instead
+  // of silently loading an empty admin page.
+  try {
+    var testResp = await fetch(SB_URL + '/rest/v1/raffle_players?select=id&limit=1', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    if (!testResp.ok) throw new Error(testResp.status);
+  } catch (e) {
+    document.getElementById('keyGate').classList.remove('hidden');
+    document.getElementById('keyGateTitle').textContent = 'Access Denied';
+    document.getElementById('keyGateMsg').innerHTML =
+      '<strong style="color:var(--danger)">The admin key in the URL is invalid or expired.</strong><br>'
+      + 'Double-check your <code>?key=</code> parameter and try again.';
+    return;
+  }
+
   document.getElementById('adminMain').classList.remove('hidden');
   loadPlayers();
   loadChannels();

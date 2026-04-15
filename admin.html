@@ -698,9 +698,10 @@ async function importPlayers() {
   showStatus('importStatus', '<span class="spinner"></span>Importing ' + rows.length + ' player(s)...', true);
 
   try {
-    /* Upsert: ON CONFLICT (member_number) DO UPDATE so re-import is safe */
+    /* Upsert: ON CONFLICT (member_number) DO UPDATE so re-import is safe.
+       PostgREST needs on_conflict in the URL to know which constraint to use. */
     const headers = { 'Prefer': 'return=representation,resolution=merge-duplicates' };
-    const result = await sbPost('raffle_players', rows, headers);
+    const result = await sbPost('raffle_players?on_conflict=member_number', rows, headers);
     const msg = 'Imported ' + result.length + ' player(s).' +
       (errors.length ? ' Skipped ' + errors.length + ' bad line(s).' : '');
     showStatus('importStatus', msg, true);

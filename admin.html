@@ -388,7 +388,7 @@
         <div class="table-wrap">
           <table class="table">
             <thead>
-              <tr><th>APA#</th><th>Name</th><th>Added</th><th></th></tr>
+              <tr><th>APA#</th><th>Name</th><th>Added</th><th>Entries</th></tr>
             </thead>
             <tbody id="playersBody">
               <tr><td colspan="4" class="muted-note">Loading...</td></tr>
@@ -640,7 +640,7 @@ function renderPlayers() {
       '<td>' + esc(p.member_number) + '</td>' +
       '<td>' + esc(p.first_name) + ' ' + esc(p.last_name) + '</td>' +
       '<td>' + fmtDate(p.created_at) + '</td>' +
-      '<td><button class="btn btn-danger btn-sm" onclick="deletePlayer(' + p.id + ',\'' + esc(p.member_number) + '\')">Delete</button></td>' +
+      '<td class="muted-note" style="font-size:0.75rem;color:var(--muted)">entries: ' + allSubmissions.filter(s => s.player_id === p.id).length + '</td>' +
     '</tr>'
   ).join('');
 }

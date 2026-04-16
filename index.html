@@ -430,6 +430,77 @@ body {
   font-size: 0.75rem;
   color: var(--muted);
 }
+
+/* How-it-works popup */
+.popup-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+.popup-overlay.hidden { display: none; }
+.popup-box {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 100%;
+  padding: 32px 28px 24px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+  text-align: center;
+}
+.popup-box h2 {
+  margin: 0 0 20px;
+  font-size: 1.3rem;
+}
+.popup-steps {
+  text-align: left;
+  margin: 0 0 24px;
+}
+.popup-step {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+.popup-step:last-child { margin-bottom: 0; }
+.popup-num {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  background: var(--primary);
+  color: #000;
+  font-weight: 800;
+  font-size: 1.1rem;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.popup-step-text {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  padding-top: 5px;
+}
+.popup-step-text strong { font-weight: 700; }
+.popup-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+.popup-btn {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  background: var(--primary);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.popup-btn:hover { background: var(--primary-dark); }
 </style>
 </head>
 <body>
@@ -487,7 +558,30 @@ body {
   <div class="channels-grid" id="channelsGrid"></div>
 </div>
 
-<div class="footer">Rush Hour Raffle &middot; v0.3</div>
+<!-- How-it-works popup (first visit only) -->
+<div class="popup-overlay hidden" id="howItWorks">
+  <div class="popup-box">
+    <h2>&#127922; How It Works</h2>
+    <div class="popup-steps">
+      <div class="popup-step">
+        <div class="popup-num">1</div>
+        <div class="popup-step-text"><strong>Subscribe</strong> to any YouTube channel on the list</div>
+      </div>
+      <div class="popup-step">
+        <div class="popup-num">2</div>
+        <div class="popup-step-text"><strong>Screenshot</strong> your subscription as proof</div>
+      </div>
+      <div class="popup-step">
+        <div class="popup-num">3</div>
+        <div class="popup-step-text"><strong>Upload</strong> it here &mdash; each screenshot = <strong>1 raffle entry</strong></div>
+      </div>
+    </div>
+    <div class="popup-note">More channels = more entries. You can come back anytime to add more!</div>
+    <button class="popup-btn" onclick="dismissPopup()">Got it &mdash; let's go!</button>
+  </div>
+</div>
+
+<div class="footer">Rush Hour Raffle &middot; v0.4</div>
 
 <script>
 /* ==========================================================================
@@ -959,6 +1053,17 @@ function refreshCard(channelId) {
 // INIT
 // ══════════════════════════════════════════════════════════════════════════
 
+// Show how-it-works popup on first visit only
+function showPopupIfFirstVisit() {
+  if (localStorage.getItem('rush_raffle_seen')) return;
+  document.getElementById('howItWorks').classList.remove('hidden');
+}
+function dismissPopup() {
+  localStorage.setItem('rush_raffle_seen', '1');
+  document.getElementById('howItWorks').classList.add('hidden');
+}
+
+showPopupIfFirstVisit();
 autoLogin();
 </script>
 </body>

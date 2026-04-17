@@ -486,6 +486,17 @@ body {
   margin-bottom: 20px;
   line-height: 1.4;
 }
+
+/* Simple informational popup body text (used by not-on-list + drawing info popups) */
+.popup-body {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text);
+  text-align: left;
+  margin-bottom: 14px;
+}
+.popup-body:last-of-type { margin-bottom: 24px; }
+.popup-body strong { font-weight: 700; }
 .popup-btn {
   display: block;
   width: 100%;
@@ -581,7 +592,35 @@ body {
   </div>
 </div>
 
-<div class="footer">Rush Hour Raffle &middot; v0.4</div>
+<!-- Not-on-list popup (shown when APA# lookup fails) -->
+<div class="popup-overlay hidden" id="notFoundPopup">
+  <div class="popup-box">
+    <h2>&#129300; We don't see you yet</h2>
+    <p class="popup-body">
+      To enter the raffle, you need to be registered in at least one <strong>APA NW Challenge</strong> event.
+    </p>
+    <p class="popup-body">
+      Already registered? Swing by the <strong>tournament desk</strong> and we'll get you added.
+    </p>
+    <button class="popup-btn" onclick="dismissNotFound()">OK</button>
+  </div>
+</div>
+
+<!-- Drawing info popup (first successful login only) -->
+<div class="popup-overlay hidden" id="drawingInfoPopup">
+  <div class="popup-box">
+    <h2>&#127920; About the Drawing</h2>
+    <p class="popup-body">
+      The raffle drawing is <strong>Sunday at about 1 PM</strong>, during closing ceremonies.
+    </p>
+    <p class="popup-body">
+      <strong>You don't need to be present to win.</strong>
+    </p>
+    <button class="popup-btn" onclick="dismissDrawingInfo()">Got it!</button>
+  </div>
+</div>
+
+<div class="footer">Rush Hour Raffle &middot; v0.6</div>
 
 <script>
 /* ==========================================================================
@@ -673,7 +712,13 @@ loginForm.addEventListener('submit', async function(e) {
   try {
     await doLogin(num);
   } catch (err) {
-    showBanner(loginBanner, 'error', err.message);
+    // "Not on the list" gets a dedicated eligibility popup; everything else
+    // (network errors, etc.) falls back to the inline banner.
+    if (err && err.code === 'NOT_ELIGIBLE') {
+      showNotFoundPopup();
+    } else {
+      showBanner(loginBanner, 'error', err.message);
+    }
   }
 });
 
@@ -687,7 +732,10 @@ async function doLogin(memberNumber) {
     { headers: READ_HEADERS }
   );
   if (!rows.length) {
-    throw new Error("You're not on the raffle list. Check with the tournament director.");
+    // Tagged so the caller can branch on eligibility vs. generic errors.
+    const err = new Error('not-eligible');
+    err.code = 'NOT_ELIGIBLE';
+    throw err;
   }
   currentPlayer = rows[0];
   localStorage.setItem(LS_KEY, JSON.stringify(currentPlayer));
@@ -740,6 +788,9 @@ async function showMainScreen() {
   loginScreen.classList.add('hidden');
   mainScreen.classList.remove('hidden');
   greeting.textContent = 'Hello, ' + currentPlayer.first_name + '!';
+
+  // Show the drawing-info popup once per device on the first successful login.
+  maybeShowDrawingInfo();
 
   try {
     await Promise.all([loadChannels(), loadSubmissions()]);
@@ -1061,6 +1112,24 @@ function showPopupIfFirstVisit() {
 function dismissPopup() {
   localStorage.setItem('rush_raffle_seen', '1');
   document.getElementById('howItWorks').classList.add('hidden');
+}
+
+// Not-on-list eligibility popup (shown on failed APA# lookup, every time)
+function showNotFoundPopup() {
+  document.getElementById('notFoundPopup').classList.remove('hidden');
+}
+function dismissNotFound() {
+  document.getElementById('notFoundPopup').classList.add('hidden');
+}
+
+// Drawing-info popup (shown once per device after the first successful login)
+function maybeShowDrawingInfo() {
+  if (localStorage.getItem('rush_raffle_drawing_seen')) return;
+  document.getElementById('drawingInfoPopup').classList.remove('hidden');
+}
+function dismissDrawingInfo() {
+  localStorage.setItem('rush_raffle_drawing_seen', '1');
+  document.getElementById('drawingInfoPopup').classList.add('hidden');
 }
 
 showPopupIfFirstVisit();

@@ -317,6 +317,63 @@
       margin-left: 8px;
     }
 
+    /* ── Drawing reveal card ── */
+    .draw-reveal {
+      border: 2px solid var(--primary);
+      background: linear-gradient(180deg, #fffbec 0%, #fff 70%);
+      border-radius: 14px;
+      padding: 28px 20px;
+      text-align: center;
+      box-shadow: 0 6px 24px rgba(194, 178, 128, 0.35);
+      margin-bottom: 16px;
+    }
+    .draw-reveal .eyebrow {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .draw-reveal .crown {
+      font-size: 2.25rem;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .draw-reveal .big-name {
+      font-size: clamp(1.75rem, 1.2rem + 2.5vw, 2.8rem);
+      font-weight: 900;
+      line-height: 1.05;
+      margin: 4px 0 6px;
+      color: var(--text);
+      word-break: break-word;
+    }
+    .draw-reveal .apa-num {
+      font-size: 1rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+    .draw-reveal .entry-facts {
+      display: inline-flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 12px 16px;
+      background: rgba(194,178,128,0.12);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 18px;
+    }
+    .draw-reveal .entry-facts strong { font-weight: 800; }
+    .draw-reveal .draw-again {
+      display: inline-flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .draw-reveal .draw-again .btn { min-height: 48px; }
+
     /* ── Responsive ── */
     @media (max-width: 600px) {
       .table { font-size: 0.8rem; }
@@ -360,6 +417,7 @@
       <button type="button" class="tab active" data-panel="players" onclick="switchTab('players')">Players</button>
       <button type="button" class="tab" data-panel="channels" onclick="switchTab('channels')">Channels</button>
       <button type="button" class="tab" data-panel="submissions" onclick="switchTab('submissions')">Submissions</button>
+      <button type="button" class="tab" data-panel="drawing" onclick="switchTab('drawing')">Drawing</button>
       <button type="button" class="tab" data-panel="export" onclick="switchTab('export')">Export</button>
     </div>
 
@@ -457,6 +515,26 @@
       </div>
     </div>
 
+    <!-- ═══ Drawing Panel ═══ -->
+    <div class="tab-panel" id="panel-drawing">
+      <div class="card">
+        <h2>Raffle Drawing</h2>
+        <p class="hint" style="margin-bottom:12px">
+          One click &rarr; one random submission. Each upload is one entry, so a player
+          with 5 channel uploads has 5&times; the chance. Randomness is seeded from
+          <code>crypto.getRandomValues()</code>, not <code>Math.random()</code>.
+          This draw doesn&rsquo;t persist anything &mdash; click again to pick another.
+        </p>
+        <div id="drawingStatus" class="status-line"></div>
+        <button type="button" class="btn btn-primary" id="btnDrawWinner" onclick="drawRaffleWinner()">
+          &#127919; Draw Winner
+        </button>
+      </div>
+
+      <!-- Reveal card — populated by drawRaffleWinner -->
+      <div id="drawingReveal" class="hidden"></div>
+    </div>
+
     <!-- ═══ Export Panel ═══ -->
     <div class="tab-panel" id="panel-export">
       <div class="card">
@@ -472,7 +550,7 @@
 
   </div><!-- /adminMain -->
 
-  <div class="footer">Rush Hour Raffle Admin &middot; v0.6</div>
+  <div class="footer">Rush Hour Raffle Admin &middot; v0.7</div>
 
 </div><!-- /page -->
 
@@ -921,6 +999,84 @@ async function exportCSV() {
     showStatus('exportStatus', 'Export failed: ' + esc(e.message), false);
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DRAWING — crypto-seeded random pick from the submissions pool.
+   Each upload is one entry (so a 5-channel uploader has 5 chances). No
+   persistent state: redraw just runs the same pick again over the full
+   pool. Admin is responsible for not awarding the same person twice.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/** Unbiased integer in [0, range) sampled from crypto entropy. */
+function cryptoRandomInt(range) {
+  if (range <= 0) return 0;
+  const maxAccept = Math.floor(0x100000000 / range) * range;
+  const buf = new Uint32Array(1);
+  let r;
+  do {
+    crypto.getRandomValues(buf);
+    r = buf[0];
+  } while (r >= maxAccept);
+  return r % range;
+}
+
+/** Pick one random submission from allSubmissions, render the reveal. */
+async function drawRaffleWinner() {
+  hideStatus('drawingStatus');
+  const reveal = document.getElementById('drawingReveal');
+
+  // Always refetch submissions — admin may have been idle for a while
+  // and players may have uploaded mid-event.
+  try {
+    allSubmissions = await sbGet(
+      'raffle_submissions',
+      'select=*,raffle_players(member_number,first_name,last_name),raffle_channels(channel_name)' +
+      '&order=uploaded_at.desc'
+    );
+  } catch (e) {
+    showStatus('drawingStatus', 'Failed to load submissions: ' + esc(e.message), false);
+    return;
+  }
+
+  if (!allSubmissions.length) {
+    reveal.classList.add('hidden');
+    showStatus('drawingStatus', 'No submissions in the pool yet.', false);
+    return;
+  }
+
+  // Crypto-random pick. This is the draw.
+  const idx  = cryptoRandomInt(allSubmissions.length);
+  const pick = allSubmissions[idx];
+
+  const player  = pick.raffle_players  || {};
+  const channel = pick.raffle_channels || {};
+  const name    = (player.first_name || '') + ' ' + (player.last_name || '');
+  const apa     = player.member_number || '';
+
+  // Their total entry count across all channels (not used for weighting
+  // in the pick itself — that was implicit in picking from submissions —
+  // but useful context for the announcer).
+  const playerEntries = allSubmissions.filter(s =>
+    s.raffle_players && s.raffle_players.member_number === apa
+  ).length;
+
+  reveal.className = 'card draw-reveal';
+  reveal.innerHTML =
+    '<span class="crown">\u{1F3C6}</span>'
+    + '<div class="eyebrow">Raffle Winner</div>'
+    + '<div class="big-name">' + esc(name.trim() || '\u2014') + '</div>'
+    + '<div class="apa-num">APA #' + esc(apa) + '</div>'
+    + '<div class="entry-facts">'
+      + '<span><strong>' + playerEntries + '</strong> entr' + (playerEntries === 1 ? 'y' : 'ies') + ' in the pool</span>'
+      + (channel.channel_name ? '<span>Drawn on: <strong>' + esc(channel.channel_name) + '</strong></span>' : '')
+      + '<span><strong>' + allSubmissions.length + '</strong> total entries</span>'
+    + '</div>'
+    + '<div class="draw-again">'
+      + '<button class="btn btn-primary" onclick="drawRaffleWinner()">&#8635; Draw Again</button>'
+    + '</div>';
+  reveal.classList.remove('hidden');
+}
+window.drawRaffleWinner = drawRaffleWinner;
 
 /** Escape a value for CSV (quote if it contains comma, quote, or newline) */
 function csvField(val) {
